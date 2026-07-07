@@ -1,0 +1,36 @@
+{
+  "threshold_global": 15,
+  "threshold_local": 3,
+  "n_features": 48,
+  "p0": 0.0625,
+  "risks": [
+    {
+      "Feature": "Sensor_13",
+      "Global_Rank": 16,
+      "Critical_Instances": 4,
+      "Risk_Prevalence": 0.002,
+      "p0": 0.0625
+    },
+    {
+      "Feature": "Sensor_36",
+      "Global_Rank": 17,
+      "Critical_Instances": 3,
+      "Risk_Prevalence": 0.0015,
+      "p0": 0.0625
+    },
+    {
+      "Feature": "Sensor_31",
+      "Global_Rank": 20,
+      "Critical_Instances": 1,
+      "Risk_Prevalence": 0.0005,
+      "p0": 0.0625
+    }
+  ],
+  "bootstrap_overlap": {
+    "feature": "Sensor_13",
+    "overlap_ratio": 0.6666666666666666,
+    "detected_in": 2,
+    "out_of": 3,
+    "binomial_p_value": 0.0112
+  }
+}

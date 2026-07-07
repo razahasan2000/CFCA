@@ -1,0 +1,54 @@
+{
+  "spearman_correlation": 0.7236,
+  "nds": 0.2764,
+  "table1": {
+    "cfca_features": [
+      "Sensor_11",
+      "Sensor_10",
+      "Sensor_12",
+      "Sensor_9",
+      "Sensor_8",
+      "Sensor_7",
+      "Sensor_25",
+      "Sensor_28",
+      "Sensor_19",
+      "Sensor_23"
+    ],
+    "cfca_scores": [
+      0.033,
+      0.0325,
+      0.029,
+      0.0276,
+      0.0252,
+      0.0252,
+      0.0066,
+      0.0045,
+      0.0041,
+      0.0036
+    ],
+    "pfi_features": [
+      "Sensor_25",
+      "Sensor_10",
+      "Sensor_9",
+      "Sensor_8",
+      "Sensor_11",
+      "Sensor_7",
+      "Sensor_28",
+      "Sensor_12",
+      "Sensor_19",
+      "Sensor_16"
+    ],
+    "pfi_scores": [
+      0.007,
+      0.0063,
+      0.0054,
+      0.0038,
+      0.0038,
+      0.0023,
+      0.0019,
+      0.0019,
+      0.0013,
+      0.0012
+    ]
+  }
+}

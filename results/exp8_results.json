@@ -1,0 +1,21 @@
+{
+  "n_occluded": 590,
+  "occluded_pct": 39.3,
+  "cfca_ranking": {
+    "LiDAR_Return": 0.09696494612029272,
+    "Camera_Confidence": 0.06998343902163359,
+    "Occlusion_Index": 0.06112468692586986,
+    "Distance": 0.028938474100439406,
+    "LiDAR_Intensity": 0.02419945428501617
+  },
+  "pfi_ranking": {
+    "LiDAR_Return": 0.07626666666666666,
+    "Camera_Confidence": 0.05586666666666662,
+    "Occlusion_Index": 0.04959999999999998,
+    "Distance": 0.018399999999999972,
+    "LiDAR_Intensity": 0.013599999999999968
+  },
+  "top1_occluded": {
+    "LiDAR_Return": 1
+  }
+}

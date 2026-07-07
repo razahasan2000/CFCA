@@ -1,0 +1,12 @@
+{
+  "n_features": 446,
+  "n_samples": 1567,
+  "failure_rate": 6.6,
+  "bsi_cfca": 0.5044,
+  "bsi_pfi": NaN,
+  "nds": 1.0805,
+  "correlation": -0.0805,
+  "hidden_risks_count": 0,
+  "time_cfca": 2.54,
+  "time_pfi": 6.6
+}
