@@ -268,57 +268,70 @@ def fig9_noise_robustness():
     print('Figure 9 saved')
 
 # ================================================================
-# Figure 10: Ablation Study — Incremental CFCA Components
+# Figure 10: Ablation Study — Bootstrap vs Full CFCA
 # ================================================================
 def fig10_ablation():
     d = load_json('exp11_results.json')
     stages = d['stages']
-    stage_names = ['Mean SHAP\n(Baseline)', 'Mean SHAP\n+ Thresholds', 'Mean SHAP\n+ Thresholds\n+ Bootstrap', 'Full CFCA']
-    bsi_vals = [stages['stage1_mean_shap']['bsi'], stages['stage2_thresholds']['bsi'],
-                stages['stage3_bootstrap']['bsi'], stages['stage4_full_cfca']['bsi']]
-    bsi_stds = [stages['stage1_mean_shap']['bsi_std'], stages['stage2_thresholds']['bsi_std'],
-                stages['stage3_bootstrap']['bsi_std'], stages['stage4_full_cfca']['bsi_std']]
-    hidden_vals = [stages['stage1_mean_shap']['n_hidden'], stages['stage2_thresholds']['n_hidden'],
-                   stages['stage3_bootstrap']['n_hidden'], stages['stage4_full_cfca']['n_hidden']]
-
-    colors = ['#95a5a6', '#3498db', '#e67e22', '#27ae60']
-
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-
-    # Panel A: BSI
-    bars = axes[0].bar(range(4), bsi_vals, yerr=bsi_stds, capsize=5, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
-    axes[0].set_xticks(range(4))
-    axes[0].set_xticklabels(stage_names, fontsize=9)
-    axes[0].set_ylabel('Bootstrap Stability Index (BSI)', fontsize=11)
-    axes[0].set_title('(a) Stability Improvement', fontsize=12, fontweight='bold')
-    axes[0].set_ylim(0, 1.15)
-    for i, (v, s) in enumerate(zip(bsi_vals, bsi_stds)):
-        axes[0].text(i, v + s + 0.03, f'{v:.3f}', ha='center', fontsize=9, fontweight='bold')
-    axes[0].axhline(y=0.9, color='red', linestyle='--', alpha=0.5, label='Safety threshold')
-    axes[0].legend(fontsize=8)
-
-    # Panel B: Hidden Risks
-    bars2 = axes[1].bar(range(4), hidden_vals, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
-    axes[1].set_xticks(range(4))
-    axes[1].set_xticklabels(stage_names, fontsize=9)
-    axes[1].set_ylabel('Hidden Risks Detected', fontsize=11)
-    axes[1].set_title('(b) Risk Detection', fontsize=12, fontweight='bold')
-    for i, v in enumerate(hidden_vals):
-        axes[1].text(i, v + 0.1, str(v), ha='center', fontsize=10, fontweight='bold')
-
-    # Panel C: Waterfall — cumulative BSI improvement
-    improvements = [0, bsi_vals[1] - bsi_vals[0], bsi_vals[2] - bsi_vals[1], bsi_vals[3] - bsi_vals[2]]
-    cumulative = np.cumsum(improvements)
-    axes[2].bar(range(4), cumulative, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
-    axes[2].set_xticks(range(4))
-    axes[2].set_xticklabels(stage_names, fontsize=9)
-    axes[2].set_ylabel('Cumulative BSI Gain', fontsize=11)
-    axes[2].set_title('(c) Incremental Gain', fontsize=12, fontweight='bold')
-    for i, v in enumerate(cumulative):
-        axes[2].text(i, v + 0.005, f'+{v:.3f}', ha='center', fontsize=9, fontweight='bold')
-
     nds = d['summary']['nds']
-    fig.suptitle(f'Figure 10: Ablation Study — Incremental Value of CFCA Components (NDS={nds:.4f})', fontsize=13, y=1.02)
+
+    bootstrap_bsi = stages['stage3_bootstrap']['bsi']
+    bootstrap_std = stages['stage3_bootstrap']['bsi_std']
+    cfca_bsi = stages['stage4_full_cfca']['bsi']
+    cfca_std = stages['stage4_full_cfca']['bsi_std']
+    hidden = stages['stage4_full_cfca']['n_hidden']
+
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
+
+    # Panel A: BSI Comparison (Bootstrap vs Full CFCA)
+    x = [0, 1]
+    bsi = [bootstrap_bsi, cfca_bsi]
+    errs = [bootstrap_std, cfca_std]
+    colors = ['#e67e22', '#27ae60']
+    bars = axes[0].bar(x, bsi, yerr=errs, capsize=8, color=colors, alpha=0.9, edgecolor='white', linewidth=2, width=0.6)
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels(['Bootstrap\nAggregation', 'Full CFCA'], fontsize=11)
+    axes[0].set_ylabel('Bootstrap Stability Index (BSI)', fontsize=11)
+    axes[0].set_title('(a) Stability: Bootstrap vs Full CFCA', fontsize=12, fontweight='bold')
+    axes[0].set_ylim(0, 1.1)
+    for i, (v, s) in enumerate(zip(bsi, errs)):
+        axes[0].text(i, v + s + 0.03, f'{v:.3f}', ha='center', fontsize=11, fontweight='bold')
+    gain = cfca_bsi - bootstrap_bsi
+    pct = (gain / bootstrap_bsi) * 100
+    axes[0].annotate(f'+{gain:.3f}\n(+{pct:.1f}%)', xy=(1, cfca_bsi + cfca_std + 0.03),
+                     xytext=(1.35, cfca_bsi + cfca_std + 0.12),
+                     fontsize=9, fontweight='bold', color='#27ae60',
+                     arrowprops=dict(arrowstyle='->', color='#27ae60', lw=1.5))
+    axes[0].axhline(y=0.9, color='red', linestyle='--', alpha=0.4, label='Safety threshold (0.9)')
+    axes[0].legend(fontsize=8, loc='lower right')
+
+    # Panel B: Hidden Risks Detected
+    axes[1].bar([0], [hidden], color='#27ae60', alpha=0.9, edgecolor='white', linewidth=2, width=0.5)
+    axes[1].set_xticks([0])
+    axes[1].set_xticklabels(['Full CFCA'], fontsize=11)
+    axes[1].set_ylabel('Count', fontsize=11)
+    axes[1].set_title(f'(b) Hidden Risks Detected', fontsize=12, fontweight='bold')
+    axes[1].set_ylim(0, hidden + 3)
+    axes[1].text(0, hidden + 0.3, str(hidden), ha='center', fontsize=14, fontweight='bold')
+    risk_names = stages['stage4_full_cfca']['hidden_risks']
+    if risk_names:
+        risk_text = ', '.join(risk_names[:5])
+        if len(risk_names) > 5:
+            risk_text += f' (+{len(risk_names)-5} more)'
+        axes[1].text(0, hidden * 0.5, risk_text, ha='center', fontsize=7, style='italic', wrap=True)
+
+    # Panel C: Ranking Disagreement (NDS)
+    axes[2].bar([0], [nds], color='#e74c3c', alpha=0.9, edgecolor='white', linewidth=2, width=0.5)
+    axes[2].set_xticks([0])
+    axes[2].set_xticklabels(['CFCA vs PFI'], fontsize=11)
+    axes[2].set_ylabel('Narrative Disconnect Score', fontsize=11)
+    axes[2].set_title('(c) Ranking Disagreement', fontsize=12, fontweight='bold')
+    axes[2].set_ylim(0, 1.1)
+    axes[2].text(0, nds + 0.03, f'{nds:.3f}', ha='center', fontsize=14, fontweight='bold')
+    corr = d['summary']['cfca_pfi_correlation']
+    axes[2].text(0, nds * 0.5, f'Spearman ρ = {corr:.3f}', ha='center', fontsize=9, style='italic')
+
+    fig.suptitle(f'Figure 10: Ablation — Bootstrap Aggregation vs Full CFCA (NDS={nds:.3f})', fontsize=13, y=1.02)
     plt.tight_layout()
     plt.savefig(os.path.join(OUT_DIR, 'figure10_ablation.png'), bbox_inches='tight', dpi=300)
     plt.close()
