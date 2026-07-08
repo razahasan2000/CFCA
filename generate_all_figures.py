@@ -268,6 +268,63 @@ def fig9_noise_robustness():
     print('Figure 9 saved')
 
 # ================================================================
+# Figure 10: Ablation Study — Incremental CFCA Components
+# ================================================================
+def fig10_ablation():
+    d = load_json('exp11_results.json')
+    stages = d['stages']
+    stage_names = ['Mean SHAP\n(Baseline)', 'Mean SHAP\n+ Thresholds', 'Mean SHAP\n+ Thresholds\n+ Bootstrap', 'Full CFCA']
+    bsi_vals = [stages['stage1_mean_shap']['bsi'], stages['stage2_thresholds']['bsi'],
+                stages['stage3_bootstrap']['bsi'], stages['stage4_full_cfca']['bsi']]
+    bsi_stds = [stages['stage1_mean_shap']['bsi_std'], stages['stage2_thresholds']['bsi_std'],
+                stages['stage3_bootstrap']['bsi_std'], stages['stage4_full_cfca']['bsi_std']]
+    hidden_vals = [stages['stage1_mean_shap']['n_hidden'], stages['stage2_thresholds']['n_hidden'],
+                   stages['stage3_bootstrap']['n_hidden'], stages['stage4_full_cfca']['n_hidden']]
+
+    colors = ['#95a5a6', '#3498db', '#e67e22', '#27ae60']
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+    # Panel A: BSI
+    bars = axes[0].bar(range(4), bsi_vals, yerr=bsi_stds, capsize=5, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    axes[0].set_xticks(range(4))
+    axes[0].set_xticklabels(stage_names, fontsize=9)
+    axes[0].set_ylabel('Bootstrap Stability Index (BSI)', fontsize=11)
+    axes[0].set_title('(a) Stability Improvement', fontsize=12, fontweight='bold')
+    axes[0].set_ylim(0, 1.15)
+    for i, (v, s) in enumerate(zip(bsi_vals, bsi_stds)):
+        axes[0].text(i, v + s + 0.03, f'{v:.3f}', ha='center', fontsize=9, fontweight='bold')
+    axes[0].axhline(y=0.9, color='red', linestyle='--', alpha=0.5, label='Safety threshold')
+    axes[0].legend(fontsize=8)
+
+    # Panel B: Hidden Risks
+    bars2 = axes[1].bar(range(4), hidden_vals, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    axes[1].set_xticks(range(4))
+    axes[1].set_xticklabels(stage_names, fontsize=9)
+    axes[1].set_ylabel('Hidden Risks Detected', fontsize=11)
+    axes[1].set_title('(b) Risk Detection', fontsize=12, fontweight='bold')
+    for i, v in enumerate(hidden_vals):
+        axes[1].text(i, v + 0.1, str(v), ha='center', fontsize=10, fontweight='bold')
+
+    # Panel C: Waterfall — cumulative BSI improvement
+    improvements = [0, bsi_vals[1] - bsi_vals[0], bsi_vals[2] - bsi_vals[1], bsi_vals[3] - bsi_vals[2]]
+    cumulative = np.cumsum(improvements)
+    axes[2].bar(range(4), cumulative, color=colors, alpha=0.85, edgecolor='white', linewidth=1.5)
+    axes[2].set_xticks(range(4))
+    axes[2].set_xticklabels(stage_names, fontsize=9)
+    axes[2].set_ylabel('Cumulative BSI Gain', fontsize=11)
+    axes[2].set_title('(c) Incremental Gain', fontsize=12, fontweight='bold')
+    for i, v in enumerate(cumulative):
+        axes[2].text(i, v + 0.005, f'+{v:.3f}', ha='center', fontsize=9, fontweight='bold')
+
+    nds = d['summary']['nds']
+    fig.suptitle(f'Figure 10: Ablation Study — Incremental Value of CFCA Components (NDS={nds:.4f})', fontsize=13, y=1.02)
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUT_DIR, 'figure10_ablation.png'), bbox_inches='tight', dpi=300)
+    plt.close()
+    print('Figure 10 saved')
+
+# ================================================================
 # RUN ALL
 # ================================================================
 if __name__ == '__main__':
@@ -281,4 +338,5 @@ if __name__ == '__main__':
     fig7_secom_audit()
     fig8_kitti()
     fig9_noise_robustness()
+    fig10_ablation()
     print(f'\nAll figures saved to {OUT_DIR}/')

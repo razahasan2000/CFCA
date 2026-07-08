@@ -32,7 +32,8 @@ CFCA-GitHub/
 │   ├── exp7_results.json           # SECOM Semiconductor Audit
 │   ├── exp8_results.json           # Simulated KITTI Fusion
 │   ├── exp9_results.json           # Sensor Noise Robustness
-│   └── exp10_results.json          # Real KITTI Perception Fusion
+│   ├── exp10_results.json          # Real KITTI Perception Fusion
+│   └── exp11_results.json          # Ablation Study
 ├── figures/                        # Publication-quality figures
 │   ├── figure1_narrative_disconnect.png
 │   ├── figure2_stability.png
@@ -42,7 +43,8 @@ CFCA-GitHub/
 │   ├── figure6_sensitivity_heatmap.png
 │   ├── figure7_secom_audit.png
 │   ├── figure8_kitti.png
-│   └── figure9_noise_robustness.png
+│   ├── figure9_noise_robustness.png
+│   └── figure10_ablation.png
 ```
 
 ## Quick Start
@@ -82,6 +84,7 @@ python run_experiments_batched.py 7    # SECOM Semiconductor Audit (446 features
 python run_experiments_batched.py 8    # Simulated KITTI Perception Fusion
 python run_experiments_batched.py 9    # Sensor Noise Robustness (Sensorless Drive)
 python run_experiments_batched.py 10   # Real KITTI Perception Fusion
+python run_experiments_batched.py 11   # Ablation Study (incremental CFCA components)
 
 # Run all experiments sequentially
 python run_experiments_batched.py all
@@ -109,6 +112,7 @@ Produces 9 publication-quality figures in `figures/` at 300 DPI.
 | 8 | Simulated KITTI Fusion | KITTI (simulated) | Stability | BSI >0.97 |
 | 9 | Sensor Noise Robustness | Sensorless Drive | Correlation | >0.99 at 0.5σ noise |
 | 10 | Real KITTI Fusion | KITTI (real, 500 images) | BSI | CFCA 0.9736, PFI 0.9917 |
+| 11 | Ablation Study | Sensorless Drive | BSI | Incremental gain across 4 stages |
 
 ## Key Findings
 

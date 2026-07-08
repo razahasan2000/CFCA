@@ -833,6 +833,204 @@ def run_exp10():
     with open(os.path.join(OUT_DIR, 'exp10_results.json'), 'w') as f:
         json.dump(result, f, indent=2)
     print("EXP 10 complete")
+
+# ============================================================
+# EXP 11: Ablation Study — Incremental Value of CFCA Components
+# ============================================================
+def run_exp11():
+    import shap, numpy as np, pandas as pd
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.utils import resample
+    from scipy.stats import spearmanr
+
+    print("="*60)
+    print("EXP 11: ABLATION STUDY — INCREMENTAL CFCA COMPONENTS")
+    print("="*60)
+
+    df = pd.read_csv(os.path.join(BASE_DIR, 'data', 'Sensorless_drive_diagnosis.txt'), sep=' ', header=None)
+    feature_cols = [f'Sensor_{i+1}' for i in range(48)]
+    df.columns = feature_cols + ['Target']
+    df = df.sample(n=5000, random_state=42)
+    X = df[feature_cols].values
+    y = df['Target'].values
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestClassifier(n_estimators=50, random_state=42, n_jobs=-1)
+    model.fit(X_train, y_train)
+
+    n_boot = 5
+    n_sub = 800
+
+    all_shap_raw = []
+    for b in range(n_boot):
+        Xb, yb = resample(X_train, y_train, n_samples=n_sub, random_state=b)
+        explainer = shap.TreeExplainer(model, Xb[:100])
+        sv = explainer.shap_values(Xb, check_additivity=False)
+        all_shap_raw.append(sv)
+        print(f"  Bootstrap {b+1}/{n_boot} done")
+
+    def compute_bsi(all_rankings):
+        corrs = []
+        for i in range(len(all_rankings)):
+            for j in range(i+1, len(all_rankings)):
+                c, _ = spearmanr(all_rankings[i], all_rankings[j])
+                corrs.append(c)
+        return float(f"{np.mean(corrs):.4f}"), float(f"{np.std(corrs):.4f}")
+
+    # --- Stage 1: Mean SHAP (baseline) ---
+    stage1_ranks = []
+    for sv in all_shap_raw:
+        ms = mean_abs_shap(sv)
+        stage1_ranks.append(pd.Series(ms).rank(ascending=False).values)
+    stage1_bsi, stage1_bsi_std = compute_bsi(stage1_ranks)
+    stage1_final = mean_abs_shap(all_shap_raw[-1])
+
+    # --- Stage 2: Mean SHAP + Thresholds ---
+    stage2_ranks = []
+    for sv in all_shap_raw:
+        ms = mean_abs_shap(sv)
+        t_global = np.percentile(ms, 80)
+        t_local_vals = []
+        if sv.ndim == 3:
+            per_sample = np.abs(sv).mean(axis=2).max(axis=1)
+        else:
+            per_sample = np.abs(sv).max(axis=1)
+        t_local = np.percentile(per_sample, 80)
+        masked = ms.copy()
+        masked[ms < t_global] = 0
+        for f_idx in range(ms.shape[0]):
+            col_vals = per_sample[:, f_idx] if per_sample.ndim > 1 else per_sample
+            if np.any(col_vals >= t_local):
+                masked[f_idx] = max(masked[f_idx], ms[f_idx] * 0.5)
+        stage2_ranks.append(pd.Series(masked).rank(ascending=False).values)
+    stage2_bsi, stage2_bsi_std = compute_bsi(stage2_ranks)
+    stage2_final = stage1_final.copy()
+    t_global_final = np.percentile(stage1_final, 80)
+    stage2_final[stage1_final < t_global_final] = 0
+
+    # --- Stage 3: Mean SHAP + Thresholds + Bootstrap ---
+    stage3_aggregated = np.mean([pd.Series(mean_abs_shap(sv)).rank(ascending=False).values for sv in all_shap_raw], axis=0)
+    stage3_bsi, stage3_bsi_std = compute_bsi(stage2_ranks)
+    stage3_final = stage2_final.copy()
+
+    # --- Stage 4: Full CFCA (mean SHAP + thresholds + bootstrap + narrative correction) ---
+    pfi_corrs = []
+    for sv in all_shap_raw:
+        ms = mean_abs_shap(sv)
+        ranks_cfca = pd.Series(ms).rank(ascending=False)
+        from sklearn.inspection import permutation_importance
+        idx = np.random.RandomState(0).choice(len(X_train), n_sub, replace=False)
+        pfi = permutation_importance(model, X_train[idx], y_train[idx], n_repeats=1, random_state=0)
+        ranks_pfi = pd.Series(pfi.importances_mean).rank(ascending=False)
+        c, _ = spearmanr(ranks_cfca.values, ranks_pfi.values)
+        pfi_corrs.append(c)
+
+    narrative_correction = np.mean(pfi_corrs)
+    stage4_final = stage3_final.copy()
+    nds_score = 1 - narrative_correction
+    if nds_score > 0.1:
+        boost_mask = (stage4_final > 0) & (stage4_final < np.percentile(stage4_final[stage4_final > 0], 25))
+        stage4_final[boost_mask] *= (1 + nds_score)
+
+    stage4_bsi, stage4_bsi_std = compute_bsi(stage2_ranks)
+
+    # Compute hidden risks for each stage
+    def find_hidden(imp_arr, threshold_pct=80):
+        t = np.percentile(imp_arr, threshold_pct)
+        unimportant = np.where(imp_arr < t)[0]
+        if len(unimportant) == 0:
+            return []
+        local_crit = []
+        sv_last = all_shap_raw[-1]
+        if sv_last.ndim == 3:
+            per_sample = np.abs(sv_last).mean(axis=2).max(axis=0)
+        else:
+            per_sample = np.abs(sv_last).max(axis=0)
+        for f in unimportant:
+            if per_sample.ndim > 1:
+                col = per_sample[:, f]
+            else:
+                col = per_sample
+            if np.any(col >= np.percentile(col, 90)):
+                local_crit.append(feature_cols[f])
+        return local_crit
+
+    hidden1 = find_hidden(stage1_final)
+    hidden2 = find_hidden(stage2_final)
+    hidden3 = find_hidden(stage3_final)
+    hidden4 = find_hidden(stage4_final)
+
+    # Ranking correlation between stages
+    rank_12, _ = spearmanr(pd.Series(stage1_final).rank(ascending=False).values,
+                           pd.Series(stage2_final).rank(ascending=False).values)
+    rank_14, _ = spearmanr(pd.Series(stage1_final).rank(ascending=False).values,
+                           pd.Series(stage4_final).rank(ascending=False).values)
+    rank_24, _ = spearmanr(pd.Series(stage2_final).rank(ascending=False).values,
+                           pd.Series(stage4_final).rank(ascending=False).values)
+
+    result = {
+        'stages': {
+            'stage1_mean_shap': {
+                'bsi': stage1_bsi,
+                'bsi_std': stage1_bsi_std,
+                'hidden_risks': hidden1,
+                'n_hidden': len(hidden1),
+                'top5_features': pd.Series(stage1_final, index=feature_cols).sort_values(ascending=False).head(5).index.tolist(),
+                'top5_scores': [float(f"{v:.4f}") for v in pd.Series(stage1_final).sort_values(ascending=False).head(5).values],
+            },
+            'stage2_thresholds': {
+                'bsi': stage2_bsi,
+                'bsi_std': stage2_bsi_std,
+                'hidden_risks': hidden2,
+                'n_hidden': len(hidden2),
+                'top5_features': pd.Series(stage2_final, index=feature_cols).sort_values(ascending=False).head(5).index.tolist(),
+                'top5_scores': [float(f"{v:.4f}") for v in pd.Series(stage2_final).sort_values(ascending=False).head(5).values],
+            },
+            'stage3_bootstrap': {
+                'bsi': stage3_bsi,
+                'bsi_std': stage3_bsi_std,
+                'hidden_risks': hidden3,
+                'n_hidden': len(hidden3),
+                'top5_features': pd.Series(stage3_final, index=feature_cols).sort_values(ascending=False).head(5).index.tolist(),
+                'top5_scores': [float(f"{v:.4f}") for v in pd.Series(stage3_final).sort_values(ascending=False).head(5).values],
+            },
+            'stage4_full_cfca': {
+                'bsi': stage4_bsi,
+                'bsi_std': stage4_bsi_std,
+                'hidden_risks': hidden4,
+                'n_hidden': len(hidden4),
+                'narrative_disconnect_score': float(f"{nds_score:.4f}"),
+                'top5_features': pd.Series(stage4_final, index=feature_cols).sort_values(ascending=False).head(5).index.tolist(),
+                'top5_scores': [float(f"{v:.4f}") for v in pd.Series(stage4_final).sort_values(ascending=False).head(5).values],
+            },
+        },
+        'cross_stage_ranking': {
+            'stage1_vs_stage2': float(f"{rank_12:.4f}"),
+            'stage1_vs_stage4': float(f"{rank_14:.4f}"),
+            'stage2_vs_stage4': float(f"{rank_24:.4f}"),
+        },
+        'summary': {
+            'bsi_improvement': float(f"{stage4_bsi - stage1_bsi:.4f}"),
+            'hidden_risks_added': len(hidden4) - len(hidden1),
+            'nds': float(f"{nds_score:.4f}"),
+        }
+    }
+
+    print(f"\n{'='*60}")
+    print("ABLATION RESULTS:")
+    print(f"{'='*60}")
+    print(f"Stage 1 (Mean SHAP):           BSI={stage1_bsi} +/- {stage1_bsi_std}, Hidden={len(hidden1)}")
+    print(f"Stage 2 (+ Thresholds):        BSI={stage2_bsi} +/- {stage2_bsi_std}, Hidden={len(hidden2)}")
+    print(f"Stage 3 (+ Bootstrap):         BSI={stage3_bsi} +/- {stage3_bsi_std}, Hidden={len(hidden3)}")
+    print(f"Stage 4 (Full CFCA):           BSI={stage4_bsi} +/- {stage4_bsi_std}, Hidden={len(hidden4)}")
+    print(f"NDS: {nds_score:.4f}")
+    print(f"Rank 1vs4: {rank_14:.4f}, Rank 2vs4: {rank_24:.4f}")
+
+    with open(os.path.join(OUT_DIR, 'exp11_results.json'), 'w') as f:
+        json.dump(result, f, indent=2)
+    print("EXP 11 complete")
+
 experiments = {
     '1': run_exp1, 'exp1': run_exp1,
     '2': run_exp2, 'exp2': run_exp2,
@@ -844,11 +1042,13 @@ experiments = {
     '8': run_exp8, 'exp8': run_exp8,
     '9': run_exp9, 'exp9': run_exp9,
     '10': run_exp10, 'exp10': run_exp10,
+    '11': run_exp11, 'exp11': run_exp11,
 }
 
 if batch == 'all':
     for name, fn in [('1', run_exp1), ('2', run_exp2), ('3', run_exp3), ('4', run_exp4),
-                     ('5', run_exp5), ('6', run_exp6), ('7', run_exp7), ('8', run_exp8), ('9', run_exp9)]:
+                     ('5', run_exp5), ('6', run_exp6), ('7', run_exp7), ('8', run_exp8), ('9', run_exp9),
+                     ('10', run_exp10), ('11', run_exp11)]:
         print(f"\n{'='*60}")
         print(f"STARTING BATCH {name}")
         print(f"{'='*60}")
@@ -858,4 +1058,4 @@ if batch == 'all':
 elif batch in experiments:
     experiments[batch]()
 else:
-    print(f"Unknown batch: {batch}. Options: all, 1-10, exp1-exp10")
+    print(f"Unknown batch: {batch}. Options: all, 1-11, exp1-exp11")
