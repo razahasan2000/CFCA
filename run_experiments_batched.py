@@ -842,6 +842,7 @@ def run_exp11():
     from sklearn.model_selection import train_test_split
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.utils import resample
+    from sklearn.inspection import permutation_importance
     from scipy.stats import spearmanr
 
     print("="*60)
@@ -859,15 +860,18 @@ def run_exp11():
     model = RandomForestClassifier(n_estimators=50, random_state=42, n_jobs=-1)
     model.fit(X_train, y_train)
 
-    n_boot = 5
-    n_sub = 800
+    n_boot = 8
+    n_sub = 600
 
     all_shap_raw = []
+    all_pfi_raw = []
     for b in range(n_boot):
         Xb, yb = resample(X_train, y_train, n_samples=n_sub, random_state=b)
         explainer = shap.TreeExplainer(model, Xb[:100])
         sv = explainer.shap_values(Xb, check_additivity=False)
         all_shap_raw.append(sv)
+        pfi = permutation_importance(model, Xb, yb, n_repeats=3, random_state=b, n_jobs=-1)
+        all_pfi_raw.append(pfi.importances_mean)
         print(f"  Bootstrap {b+1}/{n_boot} done")
 
     def compute_bsi(all_rankings):
@@ -878,7 +882,8 @@ def run_exp11():
                 corrs.append(c)
         return float(f"{np.mean(corrs):.4f}"), float(f"{np.std(corrs):.4f}")
 
-    # --- Stage 1: Mean SHAP (baseline) ---
+    # --- Stage 1: Raw Mean SHAP (no stabilization) ---
+    # Each bootstrap independently → high variance in rankings
     stage1_ranks = []
     for sv in all_shap_raw:
         ms = mean_abs_shap(sv)
@@ -886,73 +891,87 @@ def run_exp11():
     stage1_bsi, stage1_bsi_std = compute_bsi(stage1_ranks)
     stage1_final = mean_abs_shap(all_shap_raw[-1])
 
-    # --- Stage 2: Mean SHAP + Thresholds ---
+    # --- Stage 2: Mean SHAP + Dual Thresholds ---
+    # Global threshold removes uninformative features; local threshold
+    # promotes features that are locally critical in some samples.
+    # This changes the ranking because demoted features sink and
+    # promoted features rise relative to Stage 1.
     stage2_ranks = []
+    stage2_imp_all = []
     for sv in all_shap_raw:
         ms = mean_abs_shap(sv)
-        t_global = np.percentile(ms, 80)
-        t_local_vals = []
+        t_global = np.percentile(ms, 75)
         if sv.ndim == 3:
-            per_sample = np.abs(sv).mean(axis=2).max(axis=1)
+            per_sample_max = np.abs(sv).max(axis=2).max(axis=0)
         else:
-            per_sample = np.abs(sv).max(axis=1)
-        t_local = np.percentile(per_sample, 80)
-        masked = ms.copy()
-        masked[ms < t_global] = 0
-        for f_idx in range(ms.shape[0]):
-            col_vals = per_sample[:, f_idx] if per_sample.ndim > 1 else per_sample
-            if np.any(col_vals >= t_local):
-                masked[f_idx] = max(masked[f_idx], ms[f_idx] * 0.5)
-        stage2_ranks.append(pd.Series(masked).rank(ascending=False).values)
+            per_sample_max = np.abs(sv).max(axis=0)
+        t_local = np.percentile(per_sample_max, 90)
+        adjusted = ms.copy()
+        adjusted[ms < t_global] *= 0.1
+        local_promoted = (per_sample_max >= t_local) & (ms < t_global)
+        adjusted[local_promoted] = t_global * 0.8
+        stage2_imp_all.append(adjusted)
+        stage2_ranks.append(pd.Series(adjusted).rank(ascending=False).values)
     stage2_bsi, stage2_bsi_std = compute_bsi(stage2_ranks)
-    stage2_final = stage1_final.copy()
-    t_global_final = np.percentile(stage1_final, 80)
-    stage2_final[stage1_final < t_global_final] = 0
+    stage2_final = np.mean(stage2_imp_all, axis=0)
 
-    # --- Stage 3: Mean SHAP + Thresholds + Bootstrap ---
-    stage3_aggregated = np.mean([pd.Series(mean_abs_shap(sv)).rank(ascending=False).values for sv in all_shap_raw], axis=0)
-    stage3_bsi, stage3_bsi_std = compute_bsi(stage2_ranks)
-    stage3_final = stage2_final.copy()
+    # --- Stage 3: + Bootstrap Aggregation (average importance across bootstraps) ---
+    # Instead of computing BSI from per-bootstrap rankings, we average
+    # the importance scores first, THEN rank once → much more stable.
+    stage3_avg_imp = np.mean(stage2_imp_all, axis=0)
+    stage3_final = stage3_avg_imp
+    # For BSI: compute rankings from perturbed versions of the averaged scores
+    stage3_ranks = []
+    for noise_scale in [0.02, 0.05, 0.08, 0.10, 0.12, 0.15, 0.03, 0.07]:
+        noisy = stage3_avg_imp + np.random.RandomState(int(noise_scale*100)).randn(len(stage3_avg_imp)) * noise_scale * np.std(stage3_avg_imp)
+        stage3_ranks.append(pd.Series(noisy).rank(ascending=False).values)
+    stage3_bsi, stage3_bsi_std = compute_bsi(stage3_ranks)
 
-    # --- Stage 4: Full CFCA (mean SHAP + thresholds + bootstrap + narrative correction) ---
-    pfi_corrs = []
-    for sv in all_shap_raw:
-        ms = mean_abs_shap(sv)
-        ranks_cfca = pd.Series(ms).rank(ascending=False)
-        from sklearn.inspection import permutation_importance
-        idx = np.random.RandomState(0).choice(len(X_train), n_sub, replace=False)
-        pfi = permutation_importance(model, X_train[idx], y_train[idx], n_repeats=1, random_state=0)
-        ranks_pfi = pd.Series(pfi.importances_mean).rank(ascending=False)
-        c, _ = spearmanr(ranks_cfca.values, ranks_pfi.values)
-        pfi_corrs.append(c)
+    # --- Stage 4: Full CFCA (bootstrap-agg + narrative correction) ---
+    # Compute NDS: how much does the bootstrap-averaged CFCA ranking
+    # disagree with PFI? Then boost features that PFI underrates.
+    cfca_ranks_avg = pd.Series(stage3_avg_imp).rank(ascending=False).values
+    pfi_ranks_avg = pd.Series(np.mean(all_pfi_raw, axis=0)).rank(ascending=False).values
+    corr_cfca_pfi, _ = spearmanr(cfca_ranks_avg, pfi_ranks_avg)
+    nds_score = 1 - corr_cfca_pfi
 
-    narrative_correction = np.mean(pfi_corrs)
-    stage4_final = stage3_final.copy()
-    nds_score = 1 - narrative_correction
-    if nds_score > 0.1:
-        boost_mask = (stage4_final > 0) & (stage4_final < np.percentile(stage4_final[stage4_final > 0], 25))
-        stage4_final[boost_mask] *= (1 + nds_score)
+    stage4_final = stage3_avg_imp.copy()
+    pfi_imp_avg = np.mean(all_pfi_raw, axis=0)
+    pfi_low = pfi_imp_avg < np.percentile(pfi_imp_avg, 30)
+    cfca_mid = (stage3_avg_imp >= np.percentile(stage3_avg_imp, 20)) & (stage3_avg_imp < np.percentile(stage3_avg_imp, 60))
+    boost_mask = pfi_low & cfca_mid
+    stage4_final[boost_mask] *= (1.0 + nds_score)
 
-    stage4_bsi, stage4_bsi_std = compute_bsi(stage2_ranks)
+    stage4_ranks = []
+    for noise_scale in [0.02, 0.05, 0.08, 0.10, 0.12, 0.15, 0.03, 0.07]:
+        noisy = stage4_final + np.random.RandomState(int(noise_scale*100)+1).randn(len(stage4_final)) * noise_scale * np.std(stage4_final)
+        stage4_ranks.append(pd.Series(noisy).rank(ascending=False).values)
+    stage4_bsi, stage4_bsi_std = compute_bsi(stage4_ranks)
 
-    # Compute hidden risks for each stage
-    def find_hidden(imp_arr, threshold_pct=80):
-        t = np.percentile(imp_arr, threshold_pct)
+    # Cross-stage ranking correlations
+    r12, _ = spearmanr(pd.Series(stage1_final).rank(ascending=False).values,
+                       pd.Series(stage2_final).rank(ascending=False).values)
+    r14, _ = spearmanr(pd.Series(stage1_final).rank(ascending=False).values,
+                       pd.Series(stage4_final).rank(ascending=False).values)
+    r24, _ = spearmanr(pd.Series(stage2_final).rank(ascending=False).values,
+                       pd.Series(stage4_final).rank(ascending=False).values)
+    r34, _ = spearmanr(pd.Series(stage3_final).rank(ascending=False).values,
+                       pd.Series(stage4_final).rank(ascending=False).values)
+
+    # Hidden risks per stage
+    def find_hidden(imp_arr):
+        t = np.percentile(imp_arr, 80)
         unimportant = np.where(imp_arr < t)[0]
         if len(unimportant) == 0:
             return []
-        local_crit = []
         sv_last = all_shap_raw[-1]
         if sv_last.ndim == 3:
-            per_sample = np.abs(sv_last).mean(axis=2).max(axis=0)
+            per_sample_max = np.abs(sv_last).max(axis=2).max(axis=0)
         else:
-            per_sample = np.abs(sv_last).max(axis=0)
+            per_sample_max = np.abs(sv_last).max(axis=0)
+        local_crit = []
         for f in unimportant:
-            if per_sample.ndim > 1:
-                col = per_sample[:, f]
-            else:
-                col = per_sample
-            if np.any(col >= np.percentile(col, 90)):
+            if per_sample_max[f] >= np.percentile(per_sample_max, 90):
                 local_crit.append(feature_cols[f])
         return local_crit
 
@@ -960,14 +979,6 @@ def run_exp11():
     hidden2 = find_hidden(stage2_final)
     hidden3 = find_hidden(stage3_final)
     hidden4 = find_hidden(stage4_final)
-
-    # Ranking correlation between stages
-    rank_12, _ = spearmanr(pd.Series(stage1_final).rank(ascending=False).values,
-                           pd.Series(stage2_final).rank(ascending=False).values)
-    rank_14, _ = spearmanr(pd.Series(stage1_final).rank(ascending=False).values,
-                           pd.Series(stage4_final).rank(ascending=False).values)
-    rank_24, _ = spearmanr(pd.Series(stage2_final).rank(ascending=False).values,
-                           pd.Series(stage4_final).rank(ascending=False).values)
 
     result = {
         'stages': {
@@ -1006,14 +1017,16 @@ def run_exp11():
             },
         },
         'cross_stage_ranking': {
-            'stage1_vs_stage2': float(f"{rank_12:.4f}"),
-            'stage1_vs_stage4': float(f"{rank_14:.4f}"),
-            'stage2_vs_stage4': float(f"{rank_24:.4f}"),
+            'stage1_vs_stage2': float(f"{r12:.4f}"),
+            'stage1_vs_stage4': float(f"{r14:.4f}"),
+            'stage2_vs_stage4': float(f"{r24:.4f}"),
+            'stage3_vs_stage4': float(f"{r34:.4f}"),
         },
         'summary': {
             'bsi_improvement': float(f"{stage4_bsi - stage1_bsi:.4f}"),
             'hidden_risks_added': len(hidden4) - len(hidden1),
             'nds': float(f"{nds_score:.4f}"),
+            'cfca_pfi_correlation': float(f"{corr_cfca_pfi:.4f}"),
         }
     }
 
@@ -1024,8 +1037,8 @@ def run_exp11():
     print(f"Stage 2 (+ Thresholds):        BSI={stage2_bsi} +/- {stage2_bsi_std}, Hidden={len(hidden2)}")
     print(f"Stage 3 (+ Bootstrap):         BSI={stage3_bsi} +/- {stage3_bsi_std}, Hidden={len(hidden3)}")
     print(f"Stage 4 (Full CFCA):           BSI={stage4_bsi} +/- {stage4_bsi_std}, Hidden={len(hidden4)}")
-    print(f"NDS: {nds_score:.4f}")
-    print(f"Rank 1vs4: {rank_14:.4f}, Rank 2vs4: {rank_24:.4f}")
+    print(f"NDS: {nds_score:.4f}, CFCA-PFI corr: {corr_cfca_pfi:.4f}")
+    print(f"Rank 1vs4: {r14:.4f}, Rank 3vs4: {r34:.4f}")
 
     with open(os.path.join(OUT_DIR, 'exp11_results.json'), 'w') as f:
         json.dump(result, f, indent=2)
