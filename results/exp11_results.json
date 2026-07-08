@@ -3,8 +3,20 @@
     "stage1_mean_shap": {
       "bsi": 0.9943,
       "bsi_std": 0.0022,
-      "hidden_risks": [],
-      "n_hidden": 0,
+      "hidden_risks": [
+        "Sensor_8",
+        "Sensor_11",
+        "Sensor_12",
+        "Sensor_13",
+        "Sensor_16",
+        "Sensor_19",
+        "Sensor_20",
+        "Sensor_21",
+        "Sensor_23",
+        "Sensor_31",
+        "Sensor_36"
+      ],
+      "n_hidden": 11,
       "top5_features": [
         "Sensor_9",
         "Sensor_10",
@@ -23,8 +35,20 @@
     "stage2_thresholds": {
       "bsi": 0.9943,
       "bsi_std": 0.0022,
-      "hidden_risks": [],
-      "n_hidden": 0,
+      "hidden_risks": [
+        "Sensor_8",
+        "Sensor_11",
+        "Sensor_12",
+        "Sensor_13",
+        "Sensor_16",
+        "Sensor_19",
+        "Sensor_20",
+        "Sensor_21",
+        "Sensor_23",
+        "Sensor_24",
+        "Sensor_36"
+      ],
+      "n_hidden": 11,
       "top5_features": [
         "Sensor_10",
         "Sensor_11",
@@ -43,8 +67,20 @@
     "stage3_bootstrap": {
       "bsi": 0.5761,
       "bsi_std": 0.0662,
-      "hidden_risks": [],
-      "n_hidden": 0,
+      "hidden_risks": [
+        "Sensor_8",
+        "Sensor_11",
+        "Sensor_12",
+        "Sensor_13",
+        "Sensor_16",
+        "Sensor_19",
+        "Sensor_20",
+        "Sensor_21",
+        "Sensor_23",
+        "Sensor_24",
+        "Sensor_36"
+      ],
+      "n_hidden": 11,
       "top5_features": [
         "Sensor_10",
         "Sensor_11",
@@ -63,8 +99,20 @@
     "stage4_full_cfca": {
       "bsi": 0.6042,
       "bsi_std": 0.0792,
-      "hidden_risks": [],
-      "n_hidden": 0,
+      "hidden_risks": [
+        "Sensor_8",
+        "Sensor_11",
+        "Sensor_12",
+        "Sensor_13",
+        "Sensor_16",
+        "Sensor_19",
+        "Sensor_20",
+        "Sensor_21",
+        "Sensor_23",
+        "Sensor_24",
+        "Sensor_36"
+      ],
+      "n_hidden": 11,
       "narrative_disconnect_score": 0.474,
       "top5_features": [
         "Sensor_10",

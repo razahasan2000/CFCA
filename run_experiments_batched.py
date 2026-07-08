@@ -958,27 +958,25 @@ def run_exp11():
     r34, _ = spearmanr(pd.Series(stage3_final).rank(ascending=False).values,
                        pd.Series(stage4_final).rank(ascending=False).values)
 
-    # Hidden risks per stage
-    def find_hidden(imp_arr):
-        t = np.percentile(imp_arr, 80)
-        unimportant = np.where(imp_arr < t)[0]
-        if len(unimportant) == 0:
-            return []
-        sv_last = all_shap_raw[-1]
-        if sv_last.ndim == 3:
-            per_sample_max = np.abs(sv_last).max(axis=2).max(axis=0)
-        else:
-            per_sample_max = np.abs(sv_last).max(axis=0)
-        local_crit = []
-        for f in unimportant:
-            if per_sample_max[f] >= np.percentile(per_sample_max, 90):
-                local_crit.append(feature_cols[f])
-        return local_crit
+    # Hidden risks per stage: features where CFCA ranks high but PFI ranks low
+    cfca_ranks_final = pd.Series(stage3_avg_imp).rank(ascending=False).values
+    pfi_ranks_final = pfi_ranks_avg
 
-    hidden1 = find_hidden(stage1_final)
-    hidden2 = find_hidden(stage2_final)
-    hidden3 = find_hidden(stage3_final)
-    hidden4 = find_hidden(stage4_final)
+    def find_hidden(imp_arr, cfca_r, pfi_r):
+        n_feat = len(imp_arr)
+        hidden = []
+        for f in range(n_feat):
+            cfca_rk = cfca_r[f]
+            pfi_rk = pfi_r[f]
+            gap = pfi_rk - cfca_rk
+            if gap >= n_feat * 0.2:
+                hidden.append(feature_cols[f])
+        return hidden
+
+    hidden1 = find_hidden(stage1_final, pd.Series(stage1_final).rank(ascending=False).values, pfi_ranks_final)
+    hidden2 = find_hidden(stage2_final, pd.Series(stage2_final).rank(ascending=False).values, pfi_ranks_final)
+    hidden3 = find_hidden(stage3_final, cfca_ranks_final, pfi_ranks_final)
+    hidden4 = find_hidden(stage4_final, pd.Series(stage4_final).rank(ascending=False).values, pfi_ranks_final)
 
     result = {
         'stages': {
