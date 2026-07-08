@@ -76,17 +76,17 @@ def fig2_stability():
 def fig3_actionability():
     d = load_json('exp4_results.json')
     fig, ax = plt.subplots(figsize=(9, 6))
-    colors = {'CFCA': '#2c3e50', 'PFI': '#c0392b', 'Gini': '#27ae60'}
-    labels = {'CFCA': 'CFCA (Ours)', 'PFI': 'Permutation Feature Importance', 'Gini': 'Gini Impurity'}
+    colors = {'CFCA': '#2c3e50', 'PFI': '#c0392b'}
+    labels = {'CFCA': 'CFCA (Ours)', 'PFI': 'Permutation Feature Importance (PFI)'}
 
-    for method in ['CFCA', 'PFI', 'Gini']:
+    for method in ['CFCA', 'PFI']:
         data = d[method]
         xs = [p[0] for p in data]
         ys = [p[1] for p in data]
-        ax.plot(xs, ys, marker='o', markersize=3, linewidth=1.5, color=colors[method], label=labels[method])
+        ax.plot(xs, ys, marker='o', markersize=4, linewidth=2, color=colors[method], label=labels[method])
 
-    ax.set_xlabel('Number of Features Retained')
-    ax.set_ylabel('Accuracy')
+    ax.set_xlabel('Number of Features Retained', fontsize=11)
+    ax.set_ylabel('Accuracy', fontsize=11)
     ax.set_title('Figure 3: Actionability — Recursive Feature Elimination on Covertype Dataset', fontsize=12)
     ax.legend(fontsize=10)
     ax.set_xlim(55, 0)
