@@ -338,6 +338,75 @@ def fig10_ablation():
     print('Figure 10 saved')
 
 # ================================================================
+# Figure 11: Benchmark Comparison (CFCA vs PFI vs LIME vs FLocalX)
+# ================================================================
+def fig11_benchmark():
+    d = load_json('exp15_results.json')
+    methods = d['methods']
+
+    method_labels = []
+    bsi_values = []
+    bsi_stds = []
+    colors = []
+
+    color_map = {
+        'cfca': '#27ae60',
+        'pfi': '#95a5a6',
+        'lime': '#3498db',
+        'flocalx': '#e67e22',
+        'gleams': '#9b59b6',
+        'glocalx': '#e74c3c',
+    }
+    display_map = {
+        'cfca': 'CFCA (Ours)',
+        'pfi': 'PFI',
+        'lime': 'LIME',
+        'flocalx': 'FLocalX',
+        'gleams': 'GLEAMS',
+        'glocalx': 'GLocalX',
+    }
+
+    for key in ['cfca', 'pfi', 'lime', 'flocalx', 'gleams', 'glocalx']:
+        m = methods.get(key, {})
+        if m.get('available', False):
+            method_labels.append(display_map[key])
+            bsi_values.append(m['bsi'])
+            bsi_stds.append(m['bsi_std'])
+            colors.append(color_map[key])
+        else:
+            method_labels.append(display_map[key] + '\n(N/A)')
+            bsi_values.append(0)
+            bsi_stds.append(0)
+            colors.append('#cccccc')
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    bars = ax.bar(method_labels, bsi_values, yerr=bsi_stds, capsize=5,
+                  color=colors, edgecolor='white', linewidth=1.2)
+
+    ax.axhline(y=0.9, color='#e74c3c', linestyle='--', linewidth=1.5, label='Safety threshold (0.9)')
+    ax.set_ylabel('Bootstrap Stability Index (BSI)', fontsize=12)
+    ax.set_title(f'Figure 11: Benchmark Comparison — CFCA vs Alternative Methods\n'
+                 f'(Sensorless Drive Diagnosis, {d["n_features"]} features, {d["n_classes"]} classes, '
+                 f'model accuracy = {d["model_accuracy"]:.2%})', fontsize=12)
+    ax.set_ylim(0, 1.1)
+    ax.legend(loc='lower right', fontsize=10)
+
+    for bar, val, std in zip(bars, bsi_values, bsi_stds):
+        if val > 0:
+            ax.text(bar.get_x() + bar.get_width() / 2, val + std + 0.02,
+                    f'{val:.4f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+    for bar, label in zip(bars, method_labels):
+        if 'N/A' in label:
+            ax.text(bar.get_x() + bar.get_width() / 2, 0.05,
+                    'N/A', ha='center', va='bottom', fontsize=9, fontstyle='italic', color='#666')
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUT_DIR, 'figure11_benchmark.png'), bbox_inches='tight', dpi=300)
+    plt.close()
+    print('Figure 11 saved')
+
+# ================================================================
 # RUN ALL
 # ================================================================
 if __name__ == '__main__':
@@ -352,4 +421,5 @@ if __name__ == '__main__':
     fig8_kitti()
     fig9_noise_robustness()
     fig10_ablation()
+    fig11_benchmark()
     print(f'\nAll figures saved to {OUT_DIR}/')

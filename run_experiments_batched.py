@@ -1054,6 +1054,7 @@ experiments = {
     '9': run_exp9, 'exp9': run_exp9,
     '10': run_exp10, 'exp10': run_exp10,
     '11': run_exp11, 'exp11': run_exp11,
+    '15': None, 'exp15': None,  # loaded from run_exp15.py
 }
 
 if batch == 'all':
@@ -1066,7 +1067,15 @@ if batch == 'all':
         t0 = time.time()
         fn()
         print(f"Batch {name} took {time.time()-t0:.1f}s")
+elif batch in ('15', 'exp15'):
+    from run_exp15 import run_exp15
+    print(f"\n{'='*60}")
+    print(f"STARTING BATCH 15")
+    print(f"{'='*60}")
+    t0 = time.time()
+    run_exp15()
+    print(f"Batch 15 took {time.time()-t0:.1f}s")
 elif batch in experiments:
     experiments[batch]()
 else:
-    print(f"Unknown batch: {batch}. Options: all, 1-11, exp1-exp11")
+    print(f"Unknown batch: {batch}. Options: all, 1-11, 15, exp1-exp11, exp15")

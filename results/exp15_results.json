@@ -1,0 +1,43 @@
+{
+  "dataset": "sensorless_drive_diagnosis",
+  "n_samples": 3000,
+  "n_features": 48,
+  "n_classes": 11,
+  "n_bootstraps": 5,
+  "model_accuracy": 0.9833,
+  "methods": {
+    "cfca": {
+      "bsi": 0.996,
+      "bsi_std": 0.0012,
+      "available": true
+    },
+    "pfi": {
+      "bsi": 0.3067,
+      "bsi_std": 0.2163,
+      "available": true
+    },
+    "lime": {
+      "bsi": 0.9995,
+      "bsi_std": 0.0003,
+      "available": true
+    },
+    "gleams": {
+      "bsi": null,
+      "bsi_std": null,
+      "available": false,
+      "reason": "attempted relative import with no known parent package"
+    },
+    "flocalx": {
+      "bsi": 0.9923,
+      "bsi_std": 0.005,
+      "available": true
+    },
+    "glocalx": {
+      "bsi": null,
+      "bsi_std": null,
+      "available": false,
+      "reason": "glocalx requires Python <3.11 (current: 3.14)"
+    }
+  },
+  "ranking_correlations": {}
+}
