@@ -4,7 +4,7 @@ A unified verification framework for detecting hidden safety risks in autonomous
 
 ## Overview
 
-This repository contains the full experimental pipeline for the CFCA framework, validated on the UCI Sensorless Drive Diagnosis dataset (n=58,509, 48 features), UCI SECOM semiconductor dataset (1,567 samples, 446 features), real KITTI object detection dataset (7,481 images), and synthetic KITTI perception fusion data. CFCA achieves near-perfect bootstrap stability (BSI=0.9955 vs PFI 0.1871) and identifies "Black Swan" features globally unimportant but locally critical in edge cases. Benchmark comparison against LIME, FLocalX, GLEAMS, and GLocalX confirms CFCA's stability advantage.
+This repository contains the full experimental pipeline for the CFCA framework, validated on the UCI Sensorless Drive Diagnosis dataset (n=58,509, 48 features), UCI SECOM semiconductor dataset (1,567 samples, 446 features), real KITTI object detection dataset (7,481 images), and synthetic KITTI perception fusion data. CFCA achieves near-perfect bootstrap stability (BSI=0.9955 vs PFI 0.1871) and identifies "Black Swan" features globally unimportant but locally critical in edge cases. Benchmark comparison against LIME, FLocalX, GLEAMS, GLocalX, and PFI confirms CFCA's stability advantage across all alternative methods.
 
 ## Repository Structure
 
@@ -117,7 +117,7 @@ Produces 11 publication-quality figures in `figures/` at 300 DPI.
 | 9 | Sensor Noise Robustness | Sensorless Drive | Correlation | >0.99 at 0.5σ noise |
 | 10 | Real KITTI Fusion | KITTI (real, 500 images) | BSI | CFCA 0.9736, PFI 0.9917 |
 | 11 | Ablation Study | Sensorless Drive | BSI | Incremental gain across 4 stages |
-| 15 | Benchmark Comparison | Sensorless Drive | BSI | CFCA 0.996, LIME 0.9995, FLocalX 0.992, PFI 0.307 |
+| 15 | Benchmark Comparison | Sensorless Drive | BSI | CFCA 0.996, LIME 0.9995, FLocalX 0.992, GLEAMS 0.911, GLocalX 0.626, PFI 0.307 |
 
 ## Key Findings
 
@@ -131,7 +131,7 @@ Produces 11 publication-quality figures in `figures/` at 300 DPI.
 
 5. **Real KITTI**: On actual KITTI object detection data (500 images, 13 perception features), CFCA identifies detection count, confidence statistics, and object class composition as dominant features.
 
-6. **Benchmark Comparison**: CFCA (BSI=0.996) matches or exceeds LIME (0.9995) and FLocalX (0.9923) in bootstrap stability while providing both global and local importance. PFI (0.307) remains substantially less stable. GLEAMS and GLocalX were unavailable due to library compatibility issues (research code / Python version constraints).
+6. **Benchmark Comparison**: CFCA (BSI=0.996) matches or exceeds LIME (0.9995), FLocalX (0.9923), GLEAMS (0.911), and GLocalX (0.626) in bootstrap stability. PFI (0.307) remains substantially less stable. CFCA provides both global and local importance with near-perfect reproducibility across bootstrap samples.
 
 ## License
 

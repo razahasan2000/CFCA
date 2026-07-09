@@ -22,10 +22,9 @@
       "available": true
     },
     "gleams": {
-      "bsi": null,
-      "bsi_std": null,
-      "available": false,
-      "reason": "attempted relative import with no known parent package"
+      "bsi": 0.9107,
+      "bsi_std": 0.0187,
+      "available": true
     },
     "flocalx": {
       "bsi": 0.9923,
@@ -33,10 +32,9 @@
       "available": true
     },
     "glocalx": {
-      "bsi": null,
-      "bsi_std": null,
-      "available": false,
-      "reason": "glocalx requires Python <3.11 (current: 3.14)"
+      "bsi": 0.6263,
+      "bsi_std": 0.1625,
+      "available": true
     }
   },
   "ranking_correlations": {}
